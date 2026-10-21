@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "357963574742",
+    "project_id": "smsystems-a2d92",
+    "storage_bucket": "smsystems-a2d92.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:357963574742:android:ebe4523d26b73acfd24877",
+        "android_client_info": {
+          "package_name": "com.example.smsystems"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDMbRCkACIuFpwkSqnEKNKHr9vEPdwPLxc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
