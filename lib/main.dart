@@ -6,294 +6,830 @@ import 'package:smsystems/firebase_options.dart';
 import 'package:smsystems/registro.dart';
 
 Future<void> main() async {
-WidgetsFlutterBinding.ensureInitialized();
+  WidgetsFlutterBinding.ensureInitialized();
 
-await Firebase.initializeApp(
-options: DefaultFirebaseOptions.currentPlatform,
-);
+  bool firebaseInicializado = false;
 
-runApp(const MyApp());
+  try {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+
+    firebaseInicializado = true;
+  } catch (e, stackTrace) {
+    debugPrint('ERRO AO INICIALIZAR FIREBASE: $e');
+    debugPrintStack(stackTrace: stackTrace);
+  }
+
+  runApp(
+    MyApp(
+      firebaseInicializado: firebaseInicializado,
+    ),
+  );
 }
 
 class MyApp extends StatelessWidget {
-const MyApp({super.key});
+  final bool firebaseInicializado;
 
-@override
-Widget build(BuildContext context) {
-return const MaterialApp(
-debugShowCheckedModeBanner: false,
-home: LoginPage(),
-);
-}
+  const MyApp({
+    super.key,
+    required this.firebaseInicializado,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      title: 'SM Systems',
+      theme: ThemeData(
+        useMaterial3: true,
+        scaffoldBackgroundColor: const Color(0xFFF5F6F8),
+      ),
+      home: LoginPage(
+        firebaseInicializado: firebaseInicializado,
+      ),
+    );
+  }
 }
 
 class LoginPage extends StatefulWidget {
-const LoginPage({super.key});
+  final bool firebaseInicializado;
 
-@override
-State<LoginPage> createState() => _LoginPageState();
+  const LoginPage({
+    super.key,
+    required this.firebaseInicializado,
+  });
+
+  @override
+  State<LoginPage> createState() => _LoginPageState();
 }
 
 class _LoginPageState extends State<LoginPage> {
-final TextEditingController emailController =
-TextEditingController();
+  final TextEditingController emailController =
+  TextEditingController();
 
-final TextEditingController passwordController =
-TextEditingController();
+  final TextEditingController passwordController =
+  TextEditingController();
 
-bool loading = false;
-bool mostrarPassword = false;
+  bool loading = false;
+  bool mostrarPassword = false;
+  bool manterSessao = false;
 
-// Iniciar sessão
-Future<void> login() async {
-if (loading) return;
+  static const laranja = Color(0xFFF47721);
+  static const preto = Color(0xFF181818);
+  static const cinzaEscuro = Color(0xFF30343B);
+  static const cinzaTexto = Color(0xFF667085);
+  static const fundo = Color(0xFFF5F6F8);
 
-final email = emailController.text.trim().toLowerCase();
-final password = passwordController.text;
+  @override
+  void initState() {
+    super.initState();
+    manterSessao = false;
+  }
 
-if (email.isEmpty || password.isEmpty) {
-ScaffoldMessenger.of(context).showSnackBar(
-const SnackBar(
-content: Text('Preencha todos os campos.'),
-),
-);
-return;
-}
+  Future<void> login() async {
+    if (loading) return;
 
-setState(() {
-loading = true;
-});
+    if (!widget.firebaseInicializado) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'O Firebase não foi inicializado. '
+                'Verifique a configuração do Firebase.',
+          ),
+        ),
+      );
+      return;
+    }
 
-try {
-await FirebaseAuth.instance.signInWithEmailAndPassword(
-email: email,
-password: password,
-);
+    final email = emailController.text.trim().toLowerCase();
+    final password = passwordController.text;
 
-if (!mounted) return;
+    if (email.isEmpty || password.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Preencha todos os campos.'),
+        ),
+      );
+      return;
+    }
 
-ScaffoldMessenger.of(context).showSnackBar(
-const SnackBar(
-content: Text('Sessão iniciada com sucesso.'),
-),
-);
+    setState(() {
+      loading = true;
+    });
 
-Navigator.pushReplacement(
-context,
-MaterialPageRoute(
-builder: (_) => const dashboard(),
-),
-);
-} on FirebaseAuthException catch (e) {
-String erro = 'Não foi possível iniciar a sessão.';
+    try {
+      await FirebaseAuth.instance.signInWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
 
-if (e.code == 'user-not-found') {
-erro = 'Não existe nenhuma conta com este e-mail.';
-} else if (e.code == 'wrong-password') {
-erro = 'A palavra-passe está incorreta.';
-} else if (e.code == 'invalid-email') {
-erro = 'O endereço de e-mail é inválido.';
-} else if (e.code == 'invalid-credential') {
-erro = 'E-mail ou palavra-passe incorretos.';
-} else if (e.code == 'network-request-failed') {
-erro = 'Erro de ligação. Verifique a Internet.';
-}
+      if (!mounted) return;
 
-debugPrint(e.code);
-debugPrint(e.message);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            manterSessao
+                ? 'Sessão iniciada com sucesso.'
+                : 'Sessão iniciada.',
+          ),
+        ),
+      );
 
-if (!mounted) return;
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const dashboard(),
+        ),
+      );
+    } on FirebaseAuthException catch (e) {
+      String erro = 'Não foi possível iniciar a sessão.';
 
-ScaffoldMessenger.of(context).showSnackBar(
-SnackBar(content: Text(erro)),
-);
-} catch (e) {
-if (!mounted) return;
+      switch (e.code) {
+        case 'user-not-found':
+          erro = 'Não existe nenhuma conta com este e-mail.';
+          break;
 
-ScaffoldMessenger.of(context).showSnackBar(
-SnackBar(
-content: Text('Ocorreu um erro: $e'),
-),
-);
-} finally {
-if (mounted) {
-setState(() {
-loading = false;
-});
-}
-}
-}
+        case 'wrong-password':
+          erro = 'A palavra-passe está incorreta.';
+          break;
 
-@override
-void dispose() {
-emailController.dispose();
-passwordController.dispose();
-super.dispose();
-}
+        case 'invalid-email':
+          erro = 'O endereço de e-mail é inválido.';
+          break;
 
-static const laranja = Color(0xFFF47721);
-static const cinzaEscuro = Color(0xFF30343B);
-static const cinzaTexto = Color(0xFF667085);
+        case 'invalid-credential':
+          erro = 'E-mail ou palavra-passe incorretos.';
+          break;
 
-@override
-Widget build(BuildContext context) {
-final compacto = MediaQuery.sizeOf(context).width < 760;
-return Scaffold(
-backgroundColor: const Color(0xFFF5F6F7),
-body: Stack(
-children: [
-Positioned.fill(
-child: Row(children: [
-Container(width: compacto ? 12 : 110, color: const Color(0xFF3D4248)),
-const Expanded(child: SizedBox()),
-]),
-),
-SafeArea(
-child: Center(
-child: SingleChildScrollView(
-padding: EdgeInsets.symmetric(horizontal: compacto ? 22 : 40, vertical: 32),
-child: ConstrainedBox(
-constraints: const BoxConstraints(maxWidth: 1080),
-child: compacto
-? Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-_apresentacao(compacto: true),
-const SizedBox(height: 30),
-_formulario(),
-])
-    : Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
-Expanded(flex: 5, child: _apresentacao(compacto: false)),
-const SizedBox(width: 55),
-Expanded(flex: 4, child: _formulario()),
-]),
-),
-),
-),
-),
-],
-),
-);
-}
+        case 'network-request-failed':
+          erro = 'Erro de ligação. Verifique a Internet.';
+          break;
 
-Widget _apresentacao({required bool compacto}) {
-return Padding(
-padding: EdgeInsets.symmetric(horizontal: compacto ? 4 : 24),
-child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-Row(children: [
-Container(
-padding: const EdgeInsets.all(12),
-decoration: BoxDecoration(color: laranja.withOpacity(.12), borderRadius: BorderRadius.circular(14)),
-child: const Icon(Icons.handyman, color: laranja, size: 30),
-),
-const SizedBox(width: 12),
-const Text('SERRALHARIA', style: TextStyle(fontSize: 25, fontWeight: FontWeight.w800, color: cinzaEscuro)),
-]),
-const SizedBox(height: 14),
-const Text('Acesso à área de trabalho', style: TextStyle(fontSize: 16, color: cinzaTexto)),
-SizedBox(height: compacto ? 25 : 58),
-_beneficio(Icons.design_services_outlined, 'Projetos à medida', 'Soluções em metal e alumínio.'),
-const SizedBox(height: 24),
-_beneficio(Icons.verified_outlined, 'Qualidade e precisão', 'Mais durabilidade, mais valor.'),
-const SizedBox(height: 24),
-_beneficio(Icons.support_agent_outlined, 'Apoio especializado', 'Do orçamento à instalação.'),
-]),
-);
-}
+        case 'too-many-requests':
+          erro = 'Demasiadas tentativas. Tente novamente mais tarde.';
+          break;
 
-Widget _beneficio(IconData icone, String titulo, String descricao) {
-return Row(children: [
-Container(
-padding: const EdgeInsets.all(10),
-decoration: BoxDecoration(
-border: Border.all(color: laranja.withOpacity(.35)),
-borderRadius: BorderRadius.circular(10),
-color: Colors.white,
-),
-child: Icon(icone, color: laranja, size: 22),
-),
-const SizedBox(width: 13),
-Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-Text(titulo, style: const TextStyle(fontWeight: FontWeight.w700, color: cinzaEscuro)),
-const SizedBox(height: 3),
-Text(descricao, style: const TextStyle(fontSize: 12, color: cinzaTexto)),
-])),
-]);
-}
+        case 'user-disabled':
+          erro = 'Esta conta foi desativada.';
+          break;
 
-InputDecoration _campo(String nome, IconData icone) {
-return InputDecoration(
-labelText: nome,
-labelStyle: const TextStyle(color: cinzaTexto),
-prefixIcon: Icon(icone, color: cinzaTexto, size: 20),
-filled: true,
-fillColor: Colors.white,
-contentPadding: const EdgeInsets.symmetric(vertical: 17, horizontal: 14),
-enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(9), borderSide: const BorderSide(color: Color(0xFFDCE0E5))),
-border: OutlineInputBorder(borderRadius: BorderRadius.circular(9)),
-focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(9), borderSide: const BorderSide(color: laranja, width: 2)),
-);
-}
+        case 'operation-not-allowed':
+          erro = 'O login por e-mail não está ativado no Firebase.';
+          break;
+      }
 
-Widget _formulario() {
-return Container(
-padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 34),
-decoration: BoxDecoration(
-color: Colors.white,
-borderRadius: BorderRadius.circular(15),
-border: Border.all(color: const Color(0xFFE9EAED)),
-boxShadow: const [BoxShadow(color: Color(0x10000000), blurRadius: 26, offset: Offset(0, 10))],
-),
-child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-const Text('Inove a sua', style: TextStyle(fontSize: 25, fontWeight: FontWeight.w800, color: cinzaEscuro)),
-const Text('Serralharia', style: TextStyle(fontSize: 25, fontWeight: FontWeight.w800, color: laranja)),
-const SizedBox(height: 13),
-const Text('Aceda à sua conta para gerir clientes, orçamentos, projetos e muito mais.', style: TextStyle(fontSize: 13, color: cinzaTexto, height: 1.5)),
-const SizedBox(height: 30),
-TextField(
-controller: emailController,
-keyboardType: TextInputType.emailAddress,
-decoration: _campo('Endereço de e-mail', Icons.person_outline),
-),
-const SizedBox(height: 14),
-TextField(
-controller: passwordController,
-obscureText: !mostrarPassword,
-onSubmitted: (_) => login(),
-decoration: _campo('Palavra-passe', Icons.lock_outline).copyWith(
-suffixIcon: IconButton(
-tooltip: mostrarPassword ? 'Ocultar palavra-passe' : 'Mostrar palavra-passe',
-icon: Icon(mostrarPassword ? Icons.visibility_outlined : Icons.visibility_off_outlined, color: cinzaTexto, size: 20),
-onPressed: () => setState(() => mostrarPassword = !mostrarPassword),
-),
-),
-),
-const SizedBox(height: 13),
-const SizedBox(height: 25),
-ElevatedButton(
-onPressed: loading ? null : login,
-style: ElevatedButton.styleFrom(
-backgroundColor: laranja,
-foregroundColor: Colors.white,
-minimumSize: const Size.fromHeight(49),
-shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-),
-child: loading
-? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5))
-    : const Text('Entrar', style: TextStyle(fontWeight: FontWeight.w700)),
-),
-const SizedBox(height: 12),
-OutlinedButton(
-onPressed: loading ? null : () {
-Navigator.push(context, MaterialPageRoute(builder: (_) => Registar()));
-},
-style: OutlinedButton.styleFrom(
-foregroundColor: cinzaEscuro,
-minimumSize: const Size.fromHeight(46),
-side: const BorderSide(color: Color(0xFFDCE0E5)),
-shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-),
-child: const Text('Criar conta'),
-),
-]),
-);
-}
+      debugPrint('Firebase Auth error: ${e.code}');
+      debugPrint('Firebase Auth message: ${e.message}');
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(erro),
+        ),
+      );
+    } catch (e, stackTrace) {
+      debugPrint('ERRO NO LOGIN: $e');
+      debugPrintStack(stackTrace: stackTrace);
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Ocorreu um erro: $e'),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          loading = false;
+        });
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    emailController.dispose();
+    passwordController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: fundo,
+      body: SafeArea(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final width = constraints.maxWidth;
+
+            int tipoLayout;
+
+            if (width < 600) {
+              tipoLayout = 1;
+            } else if (width < 1000) {
+              tipoLayout = 2;
+            } else {
+              tipoLayout = 3;
+            }
+
+            return SingleChildScrollView(
+              child: Center(
+                child: Padding(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: width < 600 ? 8 : 20,
+                    vertical: 20,
+                  ),
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(
+                      maxWidth: 1200,
+                    ),
+                    child: _layoutResponsivo(
+                      tipoLayout,
+                      width,
+                    ),
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _layoutResponsivo(
+      int tipoLayout,
+      double width,
+      ) {
+    double larguraImagem;
+
+    if (tipoLayout == 1) {
+      larguraImagem = width * 0.30;
+    } else if (tipoLayout == 2) {
+      larguraImagem = width * 0.30;
+    } else {
+      larguraImagem = 380;
+    }
+
+    if (larguraImagem < 110) {
+      larguraImagem = 110;
+    }
+
+    if (larguraImagem > 380) {
+      larguraImagem = 380;
+    }
+
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x18000000),
+            blurRadius: 35,
+            offset: Offset(0, 15),
+          ),
+        ],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            SizedBox(
+              width: larguraImagem,
+              child: _imagemLateral(),
+            ),
+            Expanded(
+              child: Padding(
+                padding: EdgeInsets.all(
+                  tipoLayout == 1
+                      ? 14
+                      : tipoLayout == 2
+                      ? 24
+                      : 38,
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _apresentacao(),
+                    SizedBox(
+                      height: tipoLayout == 1 ? 20 : 30,
+                    ),
+                    _formulario(),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _imagemLateral() {
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        Image.asset(
+          'assets/image/SMS.png',
+          fit: BoxFit.cover,
+          alignment: Alignment.center,
+          errorBuilder: (
+              BuildContext context,
+              Object error,
+              StackTrace? stackTrace,
+              ) {
+            debugPrint(
+              'ERRO AO CARREGAR IMAGEM: $error',
+            );
+
+            return Container(
+              color: preto,
+              alignment: Alignment.center,
+              child: const Icon(
+                Icons.handyman_outlined,
+                color: Colors.white,
+                size: 70,
+              ),
+            );
+          },
+        ),
+        Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                Color(0x22000000),
+                Color(0x88000000),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _apresentacao() {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFE8D8),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(
+                Icons.handyman_outlined,
+                color: laranja,
+                size: 25,
+              ),
+            ),
+            const SizedBox(width: 12),
+            const Flexible(
+              child: Text(
+                'SM Systems',
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                  color: cinzaEscuro,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        const Text(
+          'Serralharia de confiança\npara os seus projetos.',
+          style: TextStyle(
+            fontSize: 13,
+            height: 1.45,
+            color: cinzaTexto,
+          ),
+        ),
+        const SizedBox(height: 30),
+        _beneficio(
+          Icons.design_services_outlined,
+          'Projetos à medida',
+          'Soluções em metal e alumínio.',
+        ),
+        const SizedBox(height: 20),
+        _beneficio(
+          Icons.verified_outlined,
+          'Qualidade e precisão',
+          'Mais durabilidade, mais valor.',
+        ),
+        const SizedBox(height: 20),
+        _beneficio(
+          Icons.support_agent_outlined,
+          'Apoio especializado',
+          'Do orçamento à instalação.',
+        ),
+      ],
+    );
+  }
+
+  Widget _beneficio(
+      IconData icone,
+      String titulo,
+      String descricao,
+      ) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 38,
+          height: 38,
+          decoration: BoxDecoration(
+            color: const Color(0xFFFFF0E7),
+            borderRadius: BorderRadius.circular(9),
+            border: Border.all(
+              color: const Color(0xFFFFD2B5),
+            ),
+          ),
+          child: Icon(
+            icone,
+            color: laranja,
+            size: 19,
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                titulo,
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: cinzaEscuro,
+                ),
+              ),
+              const SizedBox(height: 3),
+              Text(
+                descricao,
+                style: const TextStyle(
+                  fontSize: 10,
+                  color: cinzaTexto,
+                  height: 1.3,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  InputDecoration _campo(
+      String nome,
+      IconData icone,
+      ) {
+    return InputDecoration(
+      labelText: nome,
+      labelStyle: const TextStyle(
+        fontSize: 12,
+        color: cinzaTexto,
+      ),
+      prefixIcon: Icon(
+        icone,
+        color: cinzaTexto,
+        size: 18,
+      ),
+      filled: true,
+      fillColor: Colors.white,
+      contentPadding: const EdgeInsets.symmetric(
+        vertical: 14,
+        horizontal: 12,
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(7),
+        borderSide: const BorderSide(
+          color: Color(0xFFDDE1E7),
+        ),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(7),
+        borderSide: const BorderSide(
+          color: laranja,
+          width: 1.5,
+        ),
+      ),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(7),
+      ),
+    );
+  }
+
+  Widget _formulario() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(22),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: const Color(0xFFE8E9ED),
+        ),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x12000000),
+            blurRadius: 22,
+            offset: Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Text(
+            'Inove a sua',
+            style: TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.w800,
+              color: cinzaEscuro,
+              height: 1.15,
+            ),
+          ),
+          const Text(
+            'Serralharia',
+            style: TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.w800,
+              color: laranja,
+              height: 1.15,
+            ),
+          ),
+          const SizedBox(height: 12),
+          const Text(
+            'Aceda à sua conta para gerir clientes, '
+                'orçamentos, projetos e muito mais.',
+            style: TextStyle(
+              fontSize: 10.5,
+              color: cinzaTexto,
+              height: 1.45,
+            ),
+          ),
+          const SizedBox(height: 22),
+          TextField(
+            controller: emailController,
+            keyboardType: TextInputType.emailAddress,
+            textInputAction: TextInputAction.next,
+            decoration: _campo(
+              'Endereço de e-mail',
+              Icons.person_outline,
+            ),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: passwordController,
+            obscureText: !mostrarPassword,
+            onSubmitted: (_) => login(),
+            decoration: _campo(
+              'Palavra-passe',
+              Icons.lock_outline,
+            ).copyWith(
+              suffixIcon: IconButton(
+                tooltip: mostrarPassword
+                    ? 'Ocultar palavra-passe'
+                    : 'Mostrar palavra-passe',
+                icon: Icon(
+                  mostrarPassword
+                      ? Icons.visibility_outlined
+                      : Icons.visibility_off_outlined,
+                  color: cinzaTexto,
+                  size: 18,
+                ),
+                onPressed: () {
+                  setState(() {
+                    mostrarPassword = !mostrarPassword;
+                  });
+                },
+              ),
+            ),
+          ),
+          const SizedBox(height: 13),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              SizedBox(
+                width: 18,
+                height: 18,
+                child: Checkbox(
+                  value: manterSessao,
+                  onChanged: (valor) {
+                    setState(() {
+                      manterSessao = valor ?? false;
+                    });
+                  },
+                  activeColor: laranja,
+                  materialTapTargetSize:
+                  MaterialTapTargetSize.shrinkWrap,
+                ),
+              ),
+              const SizedBox(width: 5),
+              const Expanded(
+                child: Text(
+                  'Manter sessão iniciada',
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 9.5,
+                    color: cinzaTexto,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 5),
+              Flexible(
+                child: TextButton(
+                  onPressed: _recuperarPassword,
+                  style: TextButton.styleFrom(
+                    padding: EdgeInsets.zero,
+                    minimumSize: Size.zero,
+                    tapTargetSize:
+                    MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  child: const Text(
+                    'Esqueceu a palavra-passe?',
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 9,
+                      color: laranja,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          SizedBox(
+            height: 43,
+            child: ElevatedButton(
+              onPressed: loading ? null : login,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: laranja,
+                disabledBackgroundColor:
+                const Color(0xFFF5B58D),
+                foregroundColor: Colors.white,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(7),
+                ),
+              ),
+              child: loading
+                  ? const SizedBox(
+                width: 19,
+                height: 19,
+                child: CircularProgressIndicator(
+                  color: Colors.white,
+                  strokeWidth: 2,
+                ),
+              )
+                  : const Text(
+                'Entrar',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            height: 40,
+            child: OutlinedButton(
+              onPressed: loading
+                  ? null
+                  : () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => Registar(),
+                  ),
+                );
+              },
+              style: OutlinedButton.styleFrom(
+                foregroundColor: cinzaEscuro,
+                side: const BorderSide(
+                  color: Color(0xFFDCE0E5),
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(7),
+                ),
+              ),
+              child: const Text(
+                'Criar conta',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _recuperarPassword() async {
+    if (!widget.firebaseInicializado) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'O Firebase não foi inicializado. '
+                'Verifique a configuração do Firebase.',
+          ),
+        ),
+      );
+      return;
+    }
+
+    final email =
+    emailController.text.trim().toLowerCase();
+
+    if (email.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Introduza primeiro o seu e-mail.',
+          ),
+        ),
+      );
+      return;
+    }
+
+    try {
+      await FirebaseAuth.instance.sendPasswordResetEmail(
+        email: email,
+      );
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Foi enviado um e-mail para recuperar a palavra-passe.',
+          ),
+        ),
+      );
+    } on FirebaseAuthException catch (e) {
+      debugPrint(
+        'Password reset error: ${e.code}',
+      );
+
+      debugPrint(e.message);
+
+      if (!mounted) return;
+
+      String mensagem =
+          'Não foi possível enviar o e-mail.';
+
+      if (e.code == 'user-not-found') {
+        mensagem =
+        'Não existe nenhuma conta com este e-mail.';
+      } else if (e.code == 'invalid-email') {
+        mensagem =
+        'O endereço de e-mail é inválido.';
+      } else if (e.code == 'network-request-failed') {
+        mensagem =
+        'Erro de ligação. Verifique a Internet.';
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(mensagem),
+        ),
+      );
+    } catch (e) {
+      debugPrint(
+        'ERRO AO RECUPERAR PASSWORD: $e',
+      );
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Ocorreu um erro: $e',
+          ),
+        ),
+      );
+    }
+  }
 }
